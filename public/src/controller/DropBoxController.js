@@ -14,8 +14,24 @@ class DropBoxController {
         this.btnRename = document.querySelector('#btn-rename');
         this.btnDelete = document.querySelector('#btn-delete');
 
+
+        this.connectFirebase();
         this.initEvents();
     }
+
+    connectFirebase() {
+        var firebaseConfig = {
+            apiKey: "AIzaSyDPEmjXkVf_OA4aIS_J3qSnS_QatImUHWE",
+            authDomain: "dropbox-47c89.firebaseapp.com",
+            databaseURL: "https://dropbox-47c89.firebaseio.com",
+            projectId: "dropbox-47c89",
+            storageBucket: "dropbox-47c89.appspot.com",
+            messagingSenderId: "335924670243",
+            appId: "1:335924670243:web:543dde9416403f3812a696"
+        };
+        firebase.initializeApp(firebaseConfig);
+    }
+
 
     initEvents() {
         this.btnSendFileEl.addEventListener('click', event => {
