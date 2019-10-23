@@ -36,6 +36,7 @@ class DropBoxController {
     }
 
     connectFirebase() {
+        //estabelece a conecção com o firebase atravez das chaves do projeto
         var firebaseConfig = {
             apiKey: "AIzaSyDPEmjXkVf_OA4aIS_J3qSnS_QatImUHWE",
             authDomain: "dropbox-47c89.firebaseapp.com",
@@ -49,34 +50,106 @@ class DropBoxController {
     }
 
     getFirebaseRef(path) {
+        //referência do database realtime 
         if (!path) path = this.currentFolder.join('/');
         return firebase.database().ref(path)
     }
 
     removeTask() {
+        //realiza o evento de exclusão dos arquivos, tratando se é um arquivo ou pasta
         let promises = [];
         this.getSelection().forEach(li => {
             let file = JSON.parse(li.dataset.file);
             let key = li.dataset.key;
 
-            let formData = new FormData();
+            promises.push(new Promise((resolve, reject) => {
+                //faz um push no array de promessas para serem executadas juntas
+                if (file.type === 'folder') {
 
-            formData.append('path', file.path);
-            formData.append('key', key);
+                    this.removeFolderTask(this.currentFolder.join('/'), file.name).then(() => {
+                        //aciona o método removefoldertask enviando o caminho da pasta atual e o nome dela
 
-            promises.push(this.ajax('/file', 'DELETE', formData));
+                        resolve({
+                            fields: {
+                                key
+                            }
+                        });
+                    });
 
+                } else if (file.type) {
+                    this.removeFile(this.currentFolder.join('/'), file.name).then(() => {
+
+                        resolve({
+                            fields: {
+                                key
+                            }
+                        });
+                    });
+                }
+
+            }));
 
         });
         return Promise.all(promises);
     }
 
-    initEvents() {
+    removeFolderTask(ref, name) {
+        //remove a pasta e os arquivos dentro dela e retorna uma promise
+        return new Promise((resolve, reject) => {
+            let folderRef = this.getFirebaseRef(ref + '/' + name);
+            folderRef.on('value', snapshot => {
 
+                folderRef.off('value');
+                //desliga o observador da pasta para que ele não tente observar a pasta quando ela for excluida
+                snapshot.forEach(item => {
+
+                    let data = item.val();
+                    data.key = item.key;
+                    //data recebe os valores e chave do item
+                    if (data.type === 'folder') {
+
+                        this.removeFolderTask(ref + '/' + name, data.name).then(() => {
+                            resolve({
+                                fields: {
+                                    key: data.key
+                                }
+                            });
+                        }).catch(err => {
+                            reject(err);
+                        });
+
+                    } else if (data.type) {
+                        this.removeFile(ref + '/' + name, data.name).then(() => {
+                            resolve({
+                                fields: {
+                                    key: data.key
+                                }
+                            });
+                        }).catch(err => {
+                            reject(err);
+                        });
+                    }
+                });
+
+                folderRef.remove();
+
+            });
+        })
+    }
+
+    removeFile(ref, name) {
+        //recebe a referencia da pasta e o nome do arquivo para fazer a exclusão
+        let fileRef = firebase.storage().ref(ref).child(name);
+        return fileRef.delete()
+        //retorna a promise do delete
+    }
+
+    initEvents() {
+        //eventos de escuta dos botoes, inputs e links 
         this.btnNewFolder.addEventListener('click', e => {
             let name = prompt('Nome da nova pasta: ');
-
             if (name) {
+                //só executa se for informado um nome para a pasta
                 this.getFirebaseRef().push().set({
                     name,
                     type: 'folder',
@@ -88,7 +161,7 @@ class DropBoxController {
         this.btnDelete.addEventListener('click', e => {
             this.removeTask().then(responses => {
                 responses.forEach(response => {
-                    if (response.fields.key) {
+                    if (response.fields.key) {//se existir um campo key no objeto ele faz o remove
                         this.getFirebaseRef().child(response.fields.key).remove();
                     }
                 });
@@ -135,11 +208,22 @@ class DropBoxController {
 
         this.inputFilesEl.addEventListener('change', event => {
             this.btnSendFileEl.disabled = true;
+
             this.uploadTask(event.target.files).then(responses => {
                 //envia os arquivos recebidos no evento para uploadTask, e recebe as respostas das promesas
 
                 responses.forEach(resp => {
-                    this.getFirebaseRef().push().set(resp.files['input-file']);
+                    //vai fazer o foreach pra cada item enviado
+                    resp.ref.getDownloadURL().then((url) => {
+                        //recebe o retorno da promessa de getDownloadURL e traz a url do arquivo no storage
+                        this.getFirebaseRef().push().set({
+                            //faz o envio dos dados para o database
+                            name: resp.name,
+                            type: resp.contentType,
+                            path: url,
+                            size: resp.size
+                        });
+                    })
                 });
 
                 this.uploadComplete();
@@ -161,9 +245,9 @@ class DropBoxController {
     openFolder() {
 
         if (this.lastFolder) this.getFirebaseRef(this.lastFolder).off('value');
-
-        this.renderNav();
-        this.readFiles();
+        //quando lastFolder tiver um valor ele deixa de observar a última pasta
+        this.renderNav(); //atualiza a navegação de pastas na tela
+        this.readFiles(); //faz a leitura dos arquivos da pasta
     }
 
     renderNav() {
@@ -216,11 +300,12 @@ class DropBoxController {
             let file = JSON.parse(li.dataset.file);
             switch (file.type) {
                 case 'folder':
-                    this.currentFolder.push(file.name); //nome da pasta
+                    this.currentFolder.push(file.name);
                     this.openFolder();
                     break;
                 default:
-                    window.open('/file?path=' + file.path);
+                    window.open(file.path);
+                //abre uma janela com a url do arquivo
             }
         });
 
@@ -268,51 +353,52 @@ class DropBoxController {
         return this.listFilesEl.querySelectorAll('.selected');
     }
 
-    ajax(url, method = 'GET', formData = new formData(), onprogress = () => { }, onloadstart = () => { }) {
-        return new Promise((resolve, reject) => {
-
-            let ajax = new XMLHttpRequest();
-            ajax.open(method, url);
-            ajax.onload = event => {
-                try {
-                    resolve(JSON.parse(ajax.responseText));
-                } catch (e) {
-                    reject(e);
-                }
-            };
-            ajax.onerror = event => {
-
-                reject(event);
-            };
-
-            ajax.upload.onprogress = onprogress;
-
-            onloadstart();
-
-            ajax.send(formData);
-        })
-    }
-
     uploadTask(files) {
         let promises = [];
+        //recebe cada arquivo em uma promessa
         [...files].forEach(file => {
 
-            let formData = new FormData();
-            formData.append('input-file', file);
+            promises.push(new Promise((resolve, reject) => {
 
-            promises.push(this.ajax('/upload', 'POST', formData, () => {
-                this.uploadProgress(event, file);
-            }, () => {
+                let fileRef = firebase.storage().ref(this.currentFolder.join('/')).child(file.name);
+                let task = fileRef.put(file);
                 this.startUploadTime = Date.now();
+                //define o momento que começou o upload para calcular o tempo gasto
+                task.on('state_changed', snapshot => {
+
+                    this.uploadProgress({
+                        loaded: snapshot.bytesTransferred,
+                        total: snapshot.totalBytes
+                    }, file);
+                    console.log('btTransf:',snapshot.bytesTransferred, 'total:',snapshot.totalBytes,'time:',this.startUploadTime );
+                }, error => {
+                    console.error(error);
+                    reject(error);
+                }, () => {
+
+                    fileRef.getMetadata().then(metadata => {
+                        resolve(metadata)
+                    }).catch(err => {
+                        reject(err);
+                    });
+
+                });
             }));
-            //faz o push da promessa enviando os parametros para o ajax realizar o POST
+
         });
 
         return Promise.all(promises);
     }
 
-    uploadProgress(event, file) {
+    uploadComplete() {
+        //funções que precisam ser acionadas quando o upload é concluido
+        this.modalShow(false);
+        this.inputFilesEl.value = '';
+        this.btnSendFileEl.disabled = false;
+    }
 
+    uploadProgress(event, file) {
+        //trata as informações da barra de progresso como o tempo gasto para o upload e status 
         let timespent = Date.now() - this.startUploadTime;
         let loaded = event.loaded;
         let total = event.total;
@@ -324,13 +410,6 @@ class DropBoxController {
         this.namefileEl.innerHTML = file.name;
         this.timeleftEl.innerHTML = this.formatTimeToHuman(timeleft);
 
-        console.log(timespent, timeleft, porcent);
-    }
-
-    uploadComplete() {
-        this.modalShow(false);
-        this.inputFilesEl.value = '';
-        this.btnSendFileEl.disabled = false;
     }
 
     formatTimeToHuman(duration) {
