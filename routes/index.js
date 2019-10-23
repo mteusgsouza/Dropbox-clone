@@ -1,6 +1,5 @@
 var express = require('express');
 var router = express.Router();
-var formidable = require('formidable');
 var fs = require('fs')
 
 /* GET home page. */
@@ -35,12 +34,6 @@ router.get('/file', (req, res) => {
 
 router.delete('/file', (req, res) => {
 
-  let form = new formidable.IncomingForm({
-    uploadDir: './upload',
-    keepExtensions: true
-    //envia os arquivos recebidos para pasta upload, e mantem as extenções dos arquivos
-  });
-
   form.parse(req, (err, fields, files) => {
 
     let path = "./" + fields.path;
@@ -70,12 +63,6 @@ router.delete('/file', (req, res) => {
 });
 
 router.post('/upload', (req, res) => {
-
-  let form = new formidable.IncomingForm({
-    uploadDir: './upload',
-    keepExtensions: true
-    //envia os arquivos recebidos para pasta upload, e mantem as extenções dos arquivos
-  });
 
   form.parse(req, (err, fields, files) => {
     res.json({

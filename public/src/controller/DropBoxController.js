@@ -180,8 +180,10 @@ class DropBoxController {
             let name = prompt("Renomear o arquivo: ", file.name);
 
             if (name) {
+
                 file.name = name;
                 this.getFirebaseRef().child(li.dataset.key).set(file);
+
             }
         });
 
@@ -246,6 +248,7 @@ class DropBoxController {
 
         if (this.lastFolder) this.getFirebaseRef(this.lastFolder).off('value');
         //quando lastFolder tiver um valor ele deixa de observar a última pasta
+
         this.renderNav(); //atualiza a navegação de pastas na tela
         this.readFiles(); //faz a leitura dos arquivos da pasta
     }
@@ -301,12 +304,18 @@ class DropBoxController {
             switch (file.type) {
                 case 'folder':
                     this.currentFolder.push(file.name);
+
+                    li.classList.remove('selected');
+                    this.listFilesEl.dispatchEvent(this.onSelectionChange);
+                    //remove a seleção da pasta anterior para evitar erro nos eventos da pasta
+
                     this.openFolder();
                     break;
                 default:
                     window.open(file.path);
                 //abre uma janela com a url do arquivo
             }
+
         });
 
         li.addEventListener('click', e => {
@@ -317,7 +326,7 @@ class DropBoxController {
                     let indexStart;
                     let indexEnd;
                     let lis = this.listFilesEl.childNodes;
-                    //li.parentElement
+                    //li.parentElement.childNodes
 
                     lis.forEach((el, index) => {
                         if (firstLi === el) indexStart = index;
@@ -370,7 +379,6 @@ class DropBoxController {
                         loaded: snapshot.bytesTransferred,
                         total: snapshot.totalBytes
                     }, file);
-                    console.log('btTransf:',snapshot.bytesTransferred, 'total:',snapshot.totalBytes,'time:',this.startUploadTime );
                 }, error => {
                     console.error(error);
                     reject(error);
