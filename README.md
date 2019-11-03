@@ -1,7 +1,7 @@
 # Dropbox-clone
 Projeto 4 Udemy Hcode - app que faz upload de arquivo no firebase storage e grava o registro no firebase database
 
-Versão publicada: https://stormy-eyrie-48900.herokuapp.com/
+Versão publicada: https://dropbox-47c89.firebaseapp.com/
 
 Como usar:<br>
 1- Faça um clone ou download o repositório<br>
